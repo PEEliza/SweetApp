@@ -103,7 +103,7 @@ export default function RecetaScreen() {
   );
 }
 
-// Esta parte estoy pesnando en moverla a un archivo de estilos por mientras dejarlo aaqui :)
+// Esta parte estoy pesnando en moverla a un archivo de estilos por mientras dejarlo aaqui :) 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   imageWrapper: {

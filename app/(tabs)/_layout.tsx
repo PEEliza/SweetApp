@@ -1,3 +1,4 @@
+// iconos de que home. crear y favoritos 
 import { Tabs } from "expo-router";
 import React from "react";
 
@@ -26,6 +27,7 @@ export default function TabLayout() {
           ),
         }}
       />
+      {/* no me salio el icono checar */}
       <Tabs.Screen
         name="crear"
         options={{
