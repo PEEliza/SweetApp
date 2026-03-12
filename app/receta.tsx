@@ -3,41 +3,58 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, {
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
   withSpring
 } from "react-native-reanimated";
+import { obtenerDetalleReceta } from '../types/recetas.service';
+
+// Definir tipo para la receta (puedes moverlo a types si prefieres)
+interface RecetaDetalle {
+  id: string;
+  title: string;
+  image: string;
+  ingredientes: string[];
+  preparacion: string;
+  categoria?: string;
+}
 
 export default function RecetaScreen() {
-  const { title } = useLocalSearchParams();
+  // Recibir TODOS los parámetros que enviamos desde index.tsx
+  const { id, title: titleParam, image: imageParam } = useLocalSearchParams();
+  
+  const [receta, setReceta] = useState<RecetaDetalle | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [cargando, setCargando] = useState(true);
   const animatedValue = useSharedValue(0);
-  // estas estan locales en la carpeta assets (estas las podemos mandar igual a la base de datos locales, para ya no mover las imagenes POLETH)
-  const images: any = {
-    "Red velvet": require("@/assets/images/pastel1.jpg"),
-    Chocolate: require("@/assets/images/pastel2.jpg"),
-    Vainilla: require("@/assets/images/pastel3jpg.jpg"),
-    "Fresa Crema": require("@/assets/images/pastel4.jpg"),
-    "Pay de Queso": require("@/assets/images/payQueso.jpg"),
-    "Pay de Limón": require("@/assets/images/payLimon.jpg"),
-    "Pay de Manzana": require("@/assets/images/payManzana.jpg"),
-    "Pay Frutal": require("@/assets/images/payFrutal.jpg"),
-    "Galleta de chocolate": require("@/assets/images/galletaChoco.jpg"),
-    "Galleta Red velvet": require("@/assets/images/GalletaRed.jpg"),
-    "Galleta Biscoff": require("@/assets/images/galletaBiscoff.jpg"),
-    "Galleta Pistacho Chocolate": require("@/assets/images/galletaPistacho.jpg"),
-  };
 
+  // Cargar detalles completos de la receta desde la API
   useEffect(() => {
-    const checkStatus = async () => {
+    const cargarDetalleReceta = async () => {
+      if (id) {
+        console.log('🔍 Cargando detalle para ID:', id);
+        const detalle = await obtenerDetalleReceta(id as string);
+        console.log('📦 Detalle recibido:', detalle);
+        setReceta(detalle);
+      }
+      setCargando(false);
+    };
+
+    cargarDetalleReceta();
+  }, [id]);
+
+  // Verificar si está en favoritos
+  useEffect(() => {
+    const checkFavoriteStatus = async () => {
       try {
         const storedFavs = await AsyncStorage.getItem("mis_favoritos");
         if (storedFavs) {
           const favsArray = JSON.parse(storedFavs);
-          const exists = favsArray.some((item: any) => item.title === title);
+          // Buscar por ID en lugar de título (más preciso)
+          const exists = favsArray.some((item: any) => item.id === id);
           setIsFavorite(exists);
           animatedValue.value = exists ? 1 : 0;
         }
@@ -45,9 +62,9 @@ export default function RecetaScreen() {
         console.error("Error al cargar favoritos:", error);
       }
     };
-    checkStatus();
-  }, [title]);
-
+    
+    checkFavoriteStatus();
+  }, [id]);
 
   const toggleFavorite = async () => {
     try {
@@ -55,9 +72,15 @@ export default function RecetaScreen() {
       let favsArray = storedFavs ? JSON.parse(storedFavs) : [];
 
       if (isFavorite) {
-        favsArray = favsArray.filter((item: any) => item.title !== title);
+        // Eliminar de favoritos
+        favsArray = favsArray.filter((item: any) => item.id !== id);
       } else {
-        favsArray.push({ title: title, image: title });
+        // Agregar a favoritos con toda la información
+        favsArray.push({ 
+          id: id, 
+          title: receta?.title || titleParam,
+          image: receta?.image || imageParam 
+        });
       }
 
       await AsyncStorage.setItem("mis_favoritos", JSON.stringify(favsArray));
@@ -70,6 +93,7 @@ export default function RecetaScreen() {
     }
   };
 
+  // Animaciones
   const buttonAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: withSpring(isFavorite ? 1.2 : 1) }],
   }));
@@ -78,11 +102,30 @@ export default function RecetaScreen() {
     const color = interpolateColor(animatedValue.value, [0, 1], ["#555", "#ff4d4d"]);
     return { color };
   });
-  // son para los contenedores 
+
+  // Mostrar cargando mientras obtenemos los detalles
+  if (cargando) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#D4A373" />
+        <Text style={{ marginTop: 10 }}>Cargando receta...</Text>
+      </View>
+    );
+  }
+
+  // Determinar qué imagen mostrar (prioridad: API > parámetro)
+  const imageSource = receta?.image || imageParam;
+  const titulo = receta?.title || titleParam;
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.imageWrapper}>
-        <Image source={images[title as string]} style={styles.image} contentFit="cover" />
+        {/* Usamos la imagen de la API si existe, sino la local */}
+        <Image 
+          source={imageSource ? { uri: imageSource } : require("@/assets/images/homepastel.jpg")} 
+          style={styles.image} 
+          contentFit="cover" 
+        />
         <Pressable onPress={toggleFavorite} style={styles.favoriteButtonContainer}>
           <Animated.View style={[styles.favoriteButton, buttonAnimatedStyle]}>
             <Animated.Text style={iconAnimatedStyle}>
@@ -93,19 +136,35 @@ export default function RecetaScreen() {
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.title}>{titulo}</Text>
+        
         <Text style={styles.subtitle}>Ingredientes</Text>
-        <Text style={styles.text}>• Harina, Azúcar, Huevos, Leche</Text>
+        {receta?.ingredientes && receta.ingredientes.length > 0 ? (
+          receta.ingredientes.map((ingrediente, index) => (
+            <Text key={index} style={styles.text}>• {ingrediente}</Text>
+          ))
+        ) : (
+          <Text style={styles.text}>• Harina, Azúcar, Huevos, Leche (Datos de ejemplo)</Text>
+        )}
+        
         <Text style={styles.subtitle}>Preparación</Text>
-        <Text style={styles.text}>Mezclar y hornear a 180°C por 35 min.</Text>
+        <Text style={styles.text}>
+          {receta?.preparacion || "Mezclar y hornear a 180°C por 35 min. (Datos de ejemplo)"}
+        </Text>
       </View>
     </ScrollView>
   );
 }
 
-// Esta parte estoy pesnando en moverla a un archivo de estilos por mientras dejarlo aaqui :) 
+// Actualizar estilos para incluir el centered
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: "#fff",
+  },
   imageWrapper: {
     position: 'relative',
     backgroundColor: "#fff",
@@ -133,7 +192,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   content: { padding: 20, paddingTop: 40 },
-  title: { fontSize: 28, fontWeight: "bold", color: "#573011", marginBottom: 5 },
+  title: { fontSize: 28, fontWeight: "bold", color: "#573011", marginBottom: 20 },
   subtitle: { fontSize: 20, fontWeight: "600", color: "#D4A373", marginTop: 20, marginBottom: 10 },
-  text: { fontSize: 16, lineHeight: 24, color: "#555" },
+  text: { fontSize: 16, lineHeight: 24, color: "#555", marginBottom: 5 },
 });
