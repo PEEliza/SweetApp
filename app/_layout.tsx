@@ -1,24 +1,89 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { Stack, useRouter, useSegments } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+interface AuthContextType {
+  user: string | null;
+  login: (username: string, token: string) => void;
+  logout: () => void;
+}
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  login: () => {},
+  logout: () => {},
+});
+
+export function useAuth() {
+  return useContext(AuthContext);
+}
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const [user, setUser] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const router = useRouter();
+  const segments = useSegments();
+
+  // Al arrancar la app, verificar si ya hay sesión guardada
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const token = await SecureStore.getItemAsync("userToken");
+        const username = await SecureStore.getItemAsync("username");
+        if (token && username) {
+          setUser(username);
+        }
+      } catch {
+        // Si falla SecureStore, arrancar sin sesión
+      } finally {
+        setMounted(true);
+      }
+    };
+    restoreSession();
+  }, []);
+
+  // Redirigir según estado de autenticación
+  useEffect(() => {
+    if (!mounted) return;
+
+    const inAuthGroup =
+      segments[0] === "login" || segments[0] === "register";
+
+    if (!user && !inAuthGroup) {
+      router.replace("/login");
+    }
+    if (user && inAuthGroup) {
+      router.replace("/(tabs)");
+    }
+  }, [user, segments, mounted]);
+
+  if (!mounted) return null;
+
+  const login = async (username: string, token: string) => {
+    await SecureStore.setItemAsync("userToken", token);
+    await SecureStore.setItemAsync("username", username);
+    setUser(username);
+  };
+
+  const logout = async () => {
+    await SecureStore.deleteItemAsync("userToken");
+    await SecureStore.deleteItemAsync("username");
+    await SecureStore.deleteItemAsync("userId");
+    setUser(null);
+  };
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+    <AuthContext.Provider value={{ user, login, logout }}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
+        <Stack.Screen name="(tabs)" />
       </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    </AuthContext.Provider>
   );
 }

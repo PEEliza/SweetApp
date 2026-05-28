@@ -1,9 +1,8 @@
-import NavBar from "@/components/navBar";
-import ParallaxScrollView from "@/components/parallax-scroll-view";
-import { imageStyles } from "@/constants/imageStyles";
+import { ThemedView } from "@/components/themed-view";
 import { styles } from "@/constants/StyleSheet";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,241 +12,269 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "../_layout";
 
-//El import jala las recetas de la api :)
-import { buscarRecetas, obtenerRecetas, Receta } from '../../types/recetas.service';
-
-
-
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api';
 const { width } = Dimensions.get("window");
 const GAP = 16;
-const CARD_WIDTH = (width - GAP) / 2;
-const PADDING_INTERNO_SCREEN = 20;
+const CARD_WIDTH = (width - 40 - GAP) / 2;
+const PADDING = 20;
+
+interface Category {
+  id: number;
+  name: string;
+  spoonQuery: string;
+}
+
+interface Recipe {
+  id: number;
+  title: string;
+  image_url: string | null;
+  isSpoonacular?: boolean;
+  spoonacularId?: number;
+}
+
+const CATEGORY_SPOON_MAP: Record<string, string> = {
+  Pasteles: "cake",
+  Pays: "pie",
+  Galletas: "cookie",
+  Cupcakes: "cupcake",
+  Brownies: "brownie",
+  Panadería: "pastry",
+  "Postres Fríos": "ice cream",
+};
 
 export default function HomeScreen() {
-  // Estados para cada categoría
-  const [pasteles, setPasteles] = useState<Receta[]>([]);
-  const [pays, setPays] = useState<Receta[]>([]);
-  const [galletas, setGalletas] = useState<Receta[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const { user } = useAuth();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [localRecipes, setLocalRecipes] = useState<Recipe[]>([]);
+  const [spoonRecipes, setSpoonRecipes] = useState<any[]>([]);
+  const [loadingLocal, setLoadingLocal] = useState(false);
+  const [loadingSpoon, setLoadingSpoon] = useState(false);
 
   useEffect(() => {
-    const cargarTodasLasRecetas = async () => {
-      setCargando(true);
-      
-      // Cargar diferentes categorías
-      const [desserts, cakes, cookies] = await Promise.all([
-        obtenerRecetas('Dessert'),     // Postres en general
-        buscarRecetas('cake'),          // Búsqueda de pasteles
-        buscarRecetas('cookie'),        // Búsqueda de galletas
-      ]);
-      
-      // Limitar a 4 recetas por categoría para mantener el diseño
-      setPasteles(cakes.slice(0, 4));
-      setPays(desserts.slice(0, 4));    // Temporalmente para pays
-      setGalletas(cookies.slice(0, 4));
-      
-      setCargando(false);
-    };
-
-    cargarTodasLasRecetas();
+    fetch(`${API_BASE}/categories`)
+      .then((r) => r.json())
+      .then((data: { id: number; name: string }[]) => {
+        const cats = data.map((c) => ({
+          ...c,
+          spoonQuery: CATEGORY_SPOON_MAP[c.name] ?? c.name.toLowerCase(),
+        }));
+        setCategories(cats);
+      })
+      .catch((e) => console.error("Error al cargar categorías:", e));
   }, []);
 
-  const renderCard = (item: Receta) => (
+  const handleCategoryPress = async (cat: Category) => {
+    if (selectedCategory?.id === cat.id) {
+      setSelectedCategory(null);
+      setLocalRecipes([]);
+      setSpoonRecipes([]);
+      return;
+    }
+    setSelectedCategory(cat);
+    setLocalRecipes([]);
+    setSpoonRecipes([]);
+
+    setLoadingLocal(true);
+    try {
+      const res = await fetch(`${API_BASE}/recipes?categoryId=${cat.id}`);
+      if (res.ok) setLocalRecipes(await res.json());
+    } catch (e) {
+      console.error("Error backend:", e);
+    } finally {
+      setLoadingLocal(false);
+    }
+
+    setLoadingSpoon(true);
+    try {
+      const token = await SecureStore.getItemAsync("userToken");
+      const res = await fetch(
+        `${API_BASE}/spoonacular/search?q=${encodeURIComponent(cat.spoonQuery)}`,
+        token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setSpoonRecipes(data.results ?? []);
+      }
+    } catch (e) {
+      console.error("Error Spoonacular:", e);
+    } finally {
+      setLoadingSpoon(false);
+    }
+  };
+
+  const renderLocalCard = (recipe: Recipe) => (
     <TouchableOpacity
-      key={item.id}
+      key={`local-${recipe.id}`}
+      onPress={() =>
+        router.push({ pathname: "/receta", params: { id: String(recipe.id) } })
+      }
+    >
+      <View style={[styles.card, { width: CARD_WIDTH }]}>
+        <Image
+          source={
+            recipe.image_url
+              ? { uri: recipe.image_url }
+              : require("@/assets/images/pastel1.jpg")
+          }
+          style={styles.cardImage}
+          contentFit="cover"
+        />
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {recipe.title}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderSpoonCard = (item: any) => (
+    <TouchableOpacity
+      key={`spoon-${item.id}`}
       onPress={() =>
         router.push({
           pathname: "/receta",
-          params: { 
-            id: item.id,
-            title: item.title,
-            image: item.image 
+          params: {
+            spoonacularId: String(item.id),
+            spoonTitle: item.title,
+            spoonImage: item.image ?? "",
+            categoryId: String(selectedCategory?.id ?? ""),
           },
         })
       }
     >
       <View style={[styles.card, { width: CARD_WIDTH }]}>
-        <Image 
-          source={{ uri: item.image + '/preview' }} 
-          style={styles.cardImage} 
+        <Image
+          source={{ uri: item.image }}
+          style={styles.cardImage}
+          contentFit="cover"
         />
-        <Text style={styles.cardTitle} numberOfLines={2}>
+        <Text style={styles.cardTitle} numberOfLines={1}>
           {item.title}
         </Text>
       </View>
     </TouchableOpacity>
   );
 
-  // Renderizado condicional mientras carga
-  if (cargando) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="hsl(29, 49%, 59%)" />
-        <Text style={{ marginTop: 10 }}>Cargando deliciosas recetas...</Text>
-      </View>
-    );
-  }
-
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: "#f8d6af", dark: "#d8c3a3" }}
-      headerImage={
-        <View style={imageStyles.headerImageContainer}>
-          <Image
-            source={require("@/assets/images/homepastel.jpg")}
-            style={imageStyles.headerImage}
-          />
-          <NavBar />
+    <ThemedView style={{ flex: 1, paddingTop: 50 }}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={{ paddingHorizontal: PADDING, marginBottom: 16 }}>
+          <Text style={{ fontSize: 22, fontWeight: "bold", color: "hsl(29, 49%, 59%)" }}>
+            ¡Hola, {user ?? "chef"} 👩‍🍳!
+          </Text>
+          <Text style={{ fontSize: 13, color: "#aaa", marginTop: 2 }}>
+            ¿Qué postre preparamos hoy?
+          </Text>
         </View>
-      }
-    >
-      {/* Sección Pasteles */}
-      <View style={{ marginTop: .3 }}>
-        <Text
-          style={{
-            fontSize: 22,
-            fontWeight: "bold",
-            marginLeft: 0,
-            color: "hsl(29, 49%, 59%)",
-          }}
-        >
-          Pasteles 🎂
-        </Text>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{
-            marginVertical: 10,
-            marginHorizontal: -PADDING_INTERNO_SCREEN,
-          }}
-          contentContainerStyle={{
-            paddingHorizontal: PADDING_INTERNO_SCREEN,
-            gap: GAP,
-          }}
-        >
-          {pasteles.length > 0 ? (
-            pasteles.map(renderCard)
-          ) : (
-            <Text>No hay pasteles disponibles</Text>
-          )}
-        </ScrollView>
-
-        <TouchableOpacity
-          style={{
-            marginTop: .02,
-            alignSelf: "center",
-            backgroundColor: "hsl(29, 49%, 59%)",
-            paddingVertical: 10,
-            paddingHorizontal: 48,
-            borderRadius: 8,
-          }}
-          onPress={() => router.push({ pathname: "/categoria", params: { categoria: "Cake" } })}
-        >
-          <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
-            Ver más pasteles
+        <View style={{ paddingHorizontal: PADDING, marginBottom: 20 }}>
+          <Text style={{ fontSize: 18, fontWeight: "bold", color: "hsl(29, 49%, 59%)", marginBottom: 12 }}>
+            Explorar categorías
           </Text>
-        </TouchableOpacity>
-      </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginHorizontal: -PADDING }}
+            contentContainerStyle={{ paddingHorizontal: PADDING, gap: 10 }}
+          >
+            {categories.map((cat) => (
+              <TouchableOpacity
+                key={cat.id}
+                onPress={() => handleCategoryPress(cat)}
+                style={{
+                  backgroundColor: selectedCategory?.id === cat.id ? "hsl(29, 49%, 59%)" : "#f0e6dd",
+                  paddingVertical: 10,
+                  paddingHorizontal: 20,
+                  borderRadius: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    color: selectedCategory?.id === cat.id ? "#fff" : "hsl(29, 49%, 59%)",
+                    fontWeight: "bold",
+                    fontSize: 14,
+                  }}
+                >
+                  {cat.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
-      {/* Sección Pays */}
-      <View style={{ marginTop: 25, marginBottom: 30 }}>
-        <Text
-          style={{
-            fontSize: 22,
-            fontWeight: "bold",
-            marginLeft: 0,
-            color: "hsl(29, 49%, 59%)",
-          }}
-        >
-          Pays y Postres 🥧
-        </Text>
+        {selectedCategory && (
+          <View style={{ paddingHorizontal: PADDING }}>
+            {loadingLocal ? (
+              <ActivityIndicator color="hsl(29, 49%, 59%)" style={{ marginBottom: 20 }} />
+            ) : localRecipes.length > 0 ? (
+              <View style={{ marginBottom: 24 }}>
+                <Text style={{ fontSize: 18, fontWeight: "600", color: "#8b5e3c", marginBottom: 12 }}>
+                  {selectedCategory.name} — Nuestras recetas
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginHorizontal: -PADDING }}
+                  contentContainerStyle={{ paddingHorizontal: PADDING, gap: GAP }}
+                >
+                  {localRecipes.map(renderLocalCard)}
+                </ScrollView>
+              </View>
+            ) : null}
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{
-            marginVertical: 10,
-            marginHorizontal: -PADDING_INTERNO_SCREEN,
-          }}
-          contentContainerStyle={{
-            paddingHorizontal: PADDING_INTERNO_SCREEN,
-            gap: GAP,
-          }}
-        >
-          {pays.length > 0 ? (
-            pays.map(renderCard)
-          ) : (
-            <Text>No hay pays disponibles</Text>
-          )}
-        </ScrollView>
+            {loadingSpoon ? (
+              <ActivityIndicator color="hsl(29, 49%, 59%)" style={{ marginBottom: 20 }} />
+            ) : spoonRecipes.length > 0 ? (
+              <View style={{ marginBottom: 24 }}>
+                <Text style={{ fontSize: 18, fontWeight: "600", color: "#8b5e3c", marginBottom: 12 }}>
+                  {selectedCategory.name} — Más recetas
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginHorizontal: -PADDING }}
+                  contentContainerStyle={{ paddingHorizontal: PADDING, gap: GAP }}
+                >
+                  {spoonRecipes.map(renderSpoonCard)}
+                </ScrollView>
+              </View>
+            ) : null}
 
-        <TouchableOpacity
-          style={{
-            marginTop: 3,
-            alignSelf: "center",
-            backgroundColor: "hsl(29, 49%, 59%)",
-            paddingVertical: 10,
-            paddingHorizontal: 48,
-            borderRadius: 8,
-          }}
-          onPress={() => router.push({ pathname: "/categoria", params: { categoria: "Dessert" } })}
-        >
-          <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
-            Ver más postres
-          </Text>
-        </TouchableOpacity>
-      </View>
+            {!loadingLocal && !loadingSpoon && localRecipes.length === 0 && spoonRecipes.length === 0 && (
+              <Text style={{ color: "#aaa", textAlign: "center", marginTop: 20 }}>
+                No se encontraron recetas en esta categoría.
+              </Text>
+            )}
+          </View>
+        )}
 
-      {/* Sección Galletas */}
-      <View style={{ marginTop: 25, marginBottom: 30 }}>
-        <Text
-          style={{
-            fontSize: 22,
-            fontWeight: "bold",
-            marginLeft: 0,
-            color: "hsl(29, 49%, 59%)",
-          }}
-        >
-          Galletas 🍪
-        </Text>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{
-            marginVertical: 10,
-            marginHorizontal: -PADDING_INTERNO_SCREEN,
-          }}
-          contentContainerStyle={{
-            paddingHorizontal: PADDING_INTERNO_SCREEN,
-            gap: GAP,
-          }}
-        >
-          {galletas.length > 0 ? (
-            galletas.map(renderCard)
-          ) : (
-            <Text>No hay galletas disponibles</Text>
-          )}
-        </ScrollView>
-
-        <TouchableOpacity
-          style={{
-            marginTop: 3,
-            alignSelf: "center",
-            backgroundColor: "hsl(29, 49%, 59%)",
-            paddingVertical: 10,
-            paddingHorizontal: 48,
-            borderRadius: 8,
-          }}
-          onPress={() => router.push({ pathname: "/categoria", params: { categoria: "Cookie" } })}
-        >
-          <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
-            Ver más galletas
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </ParallaxScrollView>
+        {!selectedCategory &&
+          categories.map((cat) => (
+            <View key={cat.id} style={{ paddingHorizontal: PADDING, marginBottom: 24 }}>
+              <Text style={{ fontSize: 22, fontWeight: "bold", color: "hsl(29, 49%, 59%)" }}>
+                {cat.name}
+              </Text>
+              <TouchableOpacity
+                onPress={() => handleCategoryPress(cat)}
+                style={{
+                  alignSelf: "center",
+                  backgroundColor: "hsl(29, 49%, 59%)",
+                  paddingVertical: 10,
+                  paddingHorizontal: 48,
+                  borderRadius: 8,
+                  marginTop: 12,
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
+                  Ver {cat.name}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        <View style={{ height: 100 }} />
+      </ScrollView>
+    </ThemedView>
   );
 }
