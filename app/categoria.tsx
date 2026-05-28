@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 
-const API_BASE = "http://10.0.2.2:3000/api";
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api';
 const { width } = Dimensions.get("window");
 const GAP = 16;
 const CARD_WIDTH = (width - 40 - GAP) / 2;

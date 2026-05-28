@@ -43,7 +43,7 @@ export default function RegisterScreen() {
       const data = await res.json();
       if (res.status === 201 || res.ok) {
         Alert.alert(
-          "¡Registro exitoso! 🎉",
+          "¡Registro exitoso!",
           "Tu cuenta fue creada. Ahora puedes iniciar sesión.",
           [{ text: "Ir al login", onPress: () => router.replace("/login") }]
         );
