@@ -1,7 +1,7 @@
 // constants/api.ts
 // URL central del backend — si cambia el servidor, solo editar aquí
 
-const BASE_URL = 'https://backsweet.onrender.com/api';
+export const BASE_URL = 'https://backsweet.onrender.com/api';
 
 export const API_ROUTES = {
   // ── Auth ─────────────────────────────────────────────────────
@@ -39,5 +39,3 @@ export const API_ROUTES = {
     detail: (id: number | string) => `${BASE_URL}/spoonacular/detail/${id}`,
   },
 };
-
-export default BASE_URL;
