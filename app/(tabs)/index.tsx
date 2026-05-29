@@ -14,7 +14,8 @@ import {
 } from "react-native";
 import { useAuth } from "../_layout";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api';
+import { API_ROUTES } from "@/constants/api";
+
 const { width } = Dimensions.get("window");
 const GAP = 16;
 const CARD_WIDTH = (width - 40 - GAP) / 2;
@@ -54,7 +55,7 @@ export default function HomeScreen() {
   const [loadingSpoon, setLoadingSpoon] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE}/categories`)
+    fetch(API_ROUTES.categories.getAll)
       .then((r) => r.json())
       .then((data: { id: number; name: string }[]) => {
         const cats = data.map((c) => ({
@@ -79,7 +80,7 @@ export default function HomeScreen() {
 
     setLoadingLocal(true);
     try {
-      const res = await fetch(`${API_BASE}/recipes?categoryId=${cat.id}`);
+      const res = await fetch(API_ROUTES.recipes.getByCategory(cat.id));
       if (res.ok) setLocalRecipes(await res.json());
     } catch (e) {
       console.error("Error backend:", e);
@@ -91,7 +92,7 @@ export default function HomeScreen() {
     try {
       const token = await SecureStore.getItemAsync("userToken");
       const res = await fetch(
-        `${API_BASE}/spoonacular/search?q=${encodeURIComponent(cat.spoonQuery)}`,
+       API_ROUTES.spoonacular.search(cat.spoonQuery),
         token ? { headers: { Authorization: `Bearer ${token}` } } : {}
       );
       if (res.ok) {

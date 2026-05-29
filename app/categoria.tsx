@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api';
+import { API_ROUTES } from "@/constants/api";
 const { width } = Dimensions.get("window");
 const GAP = 16;
 const CARD_WIDTH = (width - 40 - GAP) / 2;
@@ -44,7 +44,7 @@ export default function CategoriaScreen() {
     setLoadingSpoon(true);
 
     try {
-      const res = await fetch(`${API_BASE}/recipes?categoryId=${tipo}`);
+      const res = await fetch(API_ROUTES.recipes.getByCategory(tipo));
       if (res.ok) {
         const data = await res.json();
         setLocalRecetas(
@@ -66,7 +66,7 @@ export default function CategoriaScreen() {
       const token = await SecureStore.getItemAsync("userToken");
       const spoonQuery = CATEGORY_SPOON_MAP[nombre as string] ?? (nombre as string).toLowerCase();
       const res = await fetch(
-        `${API_BASE}/spoonacular/search?q=${encodeURIComponent(spoonQuery)}`,
+        API_ROUTES.spoonacular.search(spoonQuery),
         token ? { headers: { Authorization: `Bearer ${token}` } } : {}
       );
       if (res.ok) {

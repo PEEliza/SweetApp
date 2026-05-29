@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api';
+import { API_ROUTES } from "@/constants/api";
 
 interface RecetaFavorita {
   favoriteId: number;
@@ -37,7 +37,7 @@ export default function FavoritesScreen() {
             if (isMounted) setFavorites([]);
             return;
           }
-          const response = await fetch(`${API_BASE}/user-favorites`, {
+          const response = await fetch(API_ROUTES.favorites.getAll, {
             headers: { Authorization: `Bearer ${token}` },
           });
           const data = await response.json();
@@ -64,7 +64,7 @@ export default function FavoritesScreen() {
         style: "destructive",
         onPress: async () => {
           const token = await SecureStore.getItemAsync("userToken");
-          const res = await fetch(`${API_BASE}/user-favorites/${recipeId}`, {
+          const res = await fetch(API_ROUTES.favorites.delete(recipeId), {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` },
           });

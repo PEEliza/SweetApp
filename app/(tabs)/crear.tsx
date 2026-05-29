@@ -16,7 +16,7 @@ import {
   View,
 } from "react-native";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api';
+import { API_ROUTES } from "@/constants/api";
 
 interface Category {
   id: number;
@@ -33,7 +33,7 @@ export default function CrearRecetaScreen() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE}/categories`)
+    fetch(API_ROUTES.categories.getAll)
       .then((r) => r.json())
       .then((data: Category[]) => {
         setCategories(data);
@@ -91,7 +91,7 @@ export default function CrearRecetaScreen() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/recipes`, {
+      const res = await fetch(API_ROUTES.recipes.create, { 
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -19,7 +19,8 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api';
+import { API_ROUTES } from "@/constants/api";
+
 
 export default function RecetaScreen() {
   const { id, spoonacularId, spoonTitle, spoonImage, categoryId } =
@@ -43,7 +44,7 @@ export default function RecetaScreen() {
       setLoading(true);
       if (id) {
         try {
-          const res = await fetch(`${API_BASE}/recipes/${id}`);
+          const res = await fetch(API_ROUTES.recipes.getOne(id));
           if (res.ok) {
             const data = await res.json();
             setBackendId(data.id);
@@ -63,7 +64,7 @@ export default function RecetaScreen() {
         try {
           const token = await SecureStore.getItemAsync("userToken");
           const res = await fetch(
-            `${API_BASE}/spoonacular/detail/${spoonacularId}`,
+            API_ROUTES.spoonacular.detail(spoonacularId),
             token ? { headers: { Authorization: `Bearer ${token}` } } : {}
           );
           if (res.ok) {
@@ -94,7 +95,7 @@ export default function RecetaScreen() {
       if (!resolvedId) return;
       const token = await SecureStore.getItemAsync("userToken");
       if (!token) return;
-      const res = await fetch(`${API_BASE}/user-favorites`, {
+      const res = await fetch(API_ROUTES.favorites.getAll, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -119,7 +120,7 @@ export default function RecetaScreen() {
     try {
       let targetId = id ? Number(id) : backendId;
       if (!targetId && spoonacularId) {
-        const saveRes = await fetch(`${API_BASE}/recipes/from-spoonacular`, {
+        const saveRes = await fetch(API_ROUTES.recipes.fromSpoonacular, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -140,7 +141,7 @@ export default function RecetaScreen() {
       if (!targetId) return;
 
       if (isFavorite) {
-        const res = await fetch(`${API_BASE}/user-favorites/${targetId}`, {
+        const res = await fetch(API_ROUTES.favorites.delete(targetId), {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -149,7 +150,7 @@ export default function RecetaScreen() {
           setIsFavorite(false);
         }
       } else {
-        const res = await fetch(`${API_BASE}/user-favorites`, {
+        const res = await fetch(API_ROUTES.favorites.create, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

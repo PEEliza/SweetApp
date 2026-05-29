@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useAuth } from "../_layout";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api';
+import { API_ROUTES } from "@/constants/api";
 
 interface PerfilUsuario {
   username: string;
@@ -43,8 +43,8 @@ export default function Perfil() {
         }
         const headers = { Authorization: `Bearer ${token}` };
         const [perfilRes, favsRes] = await Promise.all([
-          fetch(`${API_BASE}/auth/me`, { headers }),
-          fetch(`${API_BASE}/user-favorites`, { headers }),
+          fetch(API_ROUTES.auth.me, { headers }),
+          fetch(API_ROUTES.favorites.getAll, { headers }),
         ]);
 
         if (perfilRes.ok) setUsuario(await perfilRes.json());

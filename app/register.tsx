@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api';
+import { API_ROUTES } from "@/constants/api";
 
 export default function RegisterScreen() {
   const [username, setUsername] = useState("");
@@ -31,7 +31,7 @@ export default function RegisterScreen() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/register`, {
+      const res = await fetch(API_ROUTES.auth.register, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

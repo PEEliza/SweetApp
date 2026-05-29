@@ -1,78 +1,50 @@
-import {
-  Stack,
-  useRouter,
-  useSegments,
-} from "expo-router";
+import { CustomTabBar } from "@/components/CustomTabBar";
+import { Ionicons } from "@expo/vector-icons";
+import { Tabs } from "expo-router";
 
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+// Este archivo SOLO configura los tabs.
+// La autenticación y el AuthContext viven en app/_layout.tsx
 
-interface AuthContextType {
-  user: string | null;
-  login: (u: string) => void;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  login: () => { },
-  logout: () => { },
-});
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
-
-export default function RootLayout() {
-  const [user, setUser] =
-    useState<string | null>(null);
-
-  const [mounted, setMounted] =
-    useState(false);
-
-  const router = useRouter();
-  const segments = useSegments();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-
-    const inAuthGroup =
-      segments[0] === "login" ||
-      segments[0] === "register";
-
-    if (!user && !inAuthGroup) {
-      router.replace("/login");
-    }
-
-    if (user && inAuthGroup) {
-      router.replace("/(tabs)");
-    }
-  }, [user, segments, mounted]);
-
-  if (!mounted) return null;
-
+export default function TabsLayout() {
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        login: (u) => setUser(u),
-        logout: () => setUser(null),
-      }}
+    <Tabs
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
     >
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="login" />
-        <Stack.Screen name="register" />
-        <Stack.Screen name="(tabs)" />
-      </Stack>
-
-    </AuthContext.Provider>
+      {/* Orden debe coincidir con orderedRoutes del CustomTabBar:
+          ["index", "crear", "favoritos", "perfil"] */}
+      <Tabs.Screen
+        name="index"
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="crear"
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="add-circle" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="favoritos"
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="heart" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="perfil"
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
+        }}
+      />
+    </Tabs>
   );
 }

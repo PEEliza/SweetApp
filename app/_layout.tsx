@@ -29,7 +29,7 @@ export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
 
-  // Al arrancar la app, verificar si ya hay sesión guardada
+  // Solo leer SecureStore al arrancar — sin fetch al backend
   useEffect(() => {
     const restoreSession = async () => {
       try {
@@ -39,7 +39,7 @@ export default function RootLayout() {
           setUser(username);
         }
       } catch {
-        // Si falla SecureStore, arrancar sin sesión
+        // Sin acceso a SecureStore — arrancar sin sesión
       } finally {
         setMounted(true);
       }
@@ -47,7 +47,8 @@ export default function RootLayout() {
     restoreSession();
   }, []);
 
-  // Redirigir según estado de autenticación
+  // Redirección — solo depende de user y mounted, NO de segments
+  // para evitar el loop infinito
   useEffect(() => {
     if (!mounted) return;
 
@@ -56,25 +57,24 @@ export default function RootLayout() {
 
     if (!user && !inAuthGroup) {
       router.replace("/login");
-    }
-    if (user && inAuthGroup) {
+    } else if (user && inAuthGroup) {
       router.replace("/(tabs)");
     }
-  }, [user, segments, mounted]);
+  }, [user, mounted]);
 
   if (!mounted) return null;
 
   const login = async (username: string, token: string) => {
     await SecureStore.setItemAsync("userToken", token);
     await SecureStore.setItemAsync("username", username);
-    setUser(username);
+    setUser(username); // esto dispara el useEffect y redirige a /(tabs)
   };
 
   const logout = async () => {
     await SecureStore.deleteItemAsync("userToken");
     await SecureStore.deleteItemAsync("username");
     await SecureStore.deleteItemAsync("userId");
-    setUser(null);
+    setUser(null); // esto dispara el useEffect y redirige a /login
   };
 
   return (
